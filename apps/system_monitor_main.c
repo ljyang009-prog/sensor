@@ -1,3 +1,5 @@
+#define _DEFAULT_SOURCE
+
 #include "sensor_pipeline/cpu_monitor.h"
 #include "sensor_pipeline/memory_monitor.h"
 #include <inttypes.h>
