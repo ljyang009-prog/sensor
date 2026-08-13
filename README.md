@@ -67,3 +67,20 @@ FROM system_metrics
 ORDER BY id DESC
 LIMIT 20;
 ```
+
+## systemd 用户服务
+
+```bash
+mkdir -p ~/.config/systemd/user
+cp deploy/system-monitor.service ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user enable --now system-monitor.service
+sudo loginctl enable-linger "$USER"
+```
+
+查看状态和日志：
+
+```bash
+systemctl --user status system-monitor.service
+journalctl --user -u system-monitor.service -f
+```

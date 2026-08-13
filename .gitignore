@@ -4,3 +4,4 @@ build/
 *.so
 system_monitor_app
 system_monitor_app.exe
+*.env

@@ -1,0 +1,17 @@
+[Unit]
+Description=CPU and memory metrics collector
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/bee/sensor_deploy
+EnvironmentFile=/home/bee/.config/sensor-monitor.env
+ExecStart=/home/bee/sensor_deploy/system_monitor_app
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=default.target

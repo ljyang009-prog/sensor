@@ -25,9 +25,9 @@ static int prepare_schema(mysql_writer_t *writer) {
         "KEY idx_type_device_time (sensor_type, device_id, event_time_ms)"
         ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4";
     static const char insert_sql[] =
-        "INSERT INTO system_metrics "
+        "INSERT IGNORE INTO system_metrics "
         "(message_id,device_id,sensor_type,event_time_ms,value,unit,sequence_no,schema_version) "
-        "VALUES (?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE message_id=VALUES(message_id)";
+        "VALUES (?,?,?,?,?,?,?,?)";
 
     if (mysql_query(writer->connection, create_table_sql) != 0) {
         fprintf(stderr, "create table failed: %s\n", mysql_error(writer->connection));
