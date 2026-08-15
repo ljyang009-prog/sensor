@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(sensor_pipeline C)
+project(system_monitor C)
 
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED ON)
@@ -10,12 +10,20 @@ if(NOT MYSQL_INCLUDE_DIR OR NOT MYSQL_CLIENT_LIBRARY)
     message(FATAL_ERROR "MySQL/MariaDB client development library not found")
 endif()
 
+find_path(HIREDIS_INCLUDE_DIR hiredis.h PATH_SUFFIXES hiredis)
+find_library(HIREDIS_LIBRARY NAMES hiredis)
+if(NOT HIREDIS_INCLUDE_DIR OR NOT HIREDIS_LIBRARY)
+    message(FATAL_ERROR "hiredis development library not found")
+endif()
+
 add_library(system_monitor
     src/collector/cpu_monitor.c
     src/collector/memory_monitor.c
+    src/mq/redis_stream.c
     src/storage/mysql_writer.c
+    src/storage/local_log_writer.c
 )
-target_include_directories(system_monitor PUBLIC include ${MYSQL_INCLUDE_DIR})
+target_include_directories(system_monitor PUBLIC include ${MYSQL_INCLUDE_DIR} ${HIREDIS_INCLUDE_DIR})
 
 add_executable(system_monitor_app apps/system_monitor_main.c)
-target_link_libraries(system_monitor_app PRIVATE system_monitor Threads::Threads ${MYSQL_CLIENT_LIBRARY})
+target_link_libraries(system_monitor_app PRIVATE system_monitor Threads::Threads ${MYSQL_CLIENT_LIBRARY} ${HIREDIS_LIBRARY})

@@ -1,4 +1,4 @@
-#include "sensor_pipeline/cpu_monitor.h"
+#include "system_monitor/cpu_monitor.h"
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -74,7 +74,7 @@ static double usage_percent(cpu_jiffies_t old, cpu_jiffies_t current)
     return ((double)(total_delta - idle_delta) * 100.0) / (double)total_delta;
 }
 
-static void fill_message(sensor_message_t *message, const char *device_id,
+static void fill_message(system_metric_t *message, const char *device_id,
                          double value, int64_t event_time_ms, uint64_t sequence)
 {
     memset(message, 0, sizeof(*message));
@@ -86,7 +86,7 @@ static void fill_message(sensor_message_t *message, const char *device_id,
 #endif
              (unsigned long long)sequence);
     snprintf(message->device_id, sizeof(message->device_id), "%s", device_id);
-    snprintf(message->sensor_type, sizeof(message->sensor_type), "cpu_usage");
+    snprintf(message->metric_type, sizeof(message->metric_type), "cpu_usage");
     snprintf(message->unit, sizeof(message->unit), "percent");
     snprintf(message->schema_version, sizeof(message->schema_version), "1.0");
     message->event_time_ms = event_time_ms;
@@ -101,7 +101,7 @@ void cpu_monitor_init(cpu_monitor_t *monitor)
     memset(monitor, 0, sizeof(*monitor));
 }
 
-int cpu_monitor_sample(cpu_monitor_t *monitor, sensor_message_t *messages,
+int cpu_monitor_sample(cpu_monitor_t *monitor, system_metric_t *messages,
                        size_t capacity, size_t *message_count,
                        int64_t event_time_ms)
 {

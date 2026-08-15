@@ -1,4 +1,4 @@
-#include "sensor_pipeline/memory_monitor.h"
+#include "system_monitor/memory_monitor.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -8,7 +8,7 @@
 #define U64_FORMAT "%llu"
 #endif
 
-int memory_monitor_sample(sensor_message_t *message, int64_t event_time_ms,
+int memory_monitor_sample(system_metric_t *message, int64_t event_time_ms,
                           uint64_t sequence) {
     FILE *file;
     char line[256];
@@ -37,7 +37,7 @@ int memory_monitor_sample(sensor_message_t *message, int64_t event_time_ms,
              (unsigned long long)sequence);
 #endif
     snprintf(message->device_id, sizeof(message->device_id), "host");
-    snprintf(message->sensor_type, sizeof(message->sensor_type), "memory_usage");
+    snprintf(message->metric_type, sizeof(message->metric_type), "memory_usage");
     snprintf(message->unit, sizeof(message->unit), "percent");
     snprintf(message->schema_version, sizeof(message->schema_version), "1.0");
     message->event_time_ms = event_time_ms;

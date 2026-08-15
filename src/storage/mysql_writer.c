@@ -1,7 +1,10 @@
-#include "sensor_pipeline/mysql_writer.h"
+#include "system_monitor/mysql_writer.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#define MYSQL_CONNECT_TIMEOUT_SECONDS 5U
+#define MYSQL_IO_TIMEOUT_SECONDS 10U
 
 static const char *env_or_default(const char *name, const char *fallback) {
     const char *value = getenv(name);
@@ -14,7 +17,7 @@ static int prepare_schema(mysql_writer_t *writer) {
         "id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,"
         "message_id VARCHAR(64) NOT NULL,"
         "device_id VARCHAR(64) NOT NULL,"
-        "sensor_type VARCHAR(64) NOT NULL,"
+        "metric_type VARCHAR(64) NOT NULL,"
         "event_time_ms BIGINT NOT NULL,"
         "value DOUBLE NOT NULL,"
         "unit VARCHAR(16) NOT NULL,"
@@ -22,11 +25,11 @@ static int prepare_schema(mysql_writer_t *writer) {
         "schema_version VARCHAR(16) NOT NULL,"
         "created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),"
         "UNIQUE KEY uk_message_id (message_id),"
-        "KEY idx_type_device_time (sensor_type, device_id, event_time_ms)"
+        "KEY idx_type_device_time (metric_type, device_id, event_time_ms)"
         ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4";
     static const char insert_sql[] =
         "INSERT IGNORE INTO system_metrics "
-        "(message_id,device_id,sensor_type,event_time_ms,value,unit,sequence_no,schema_version) "
+        "(message_id,device_id,metric_type,event_time_ms,value,unit,sequence_no,schema_version) "
         "VALUES (?,?,?,?,?,?,?,?)";
 
     if (mysql_query(writer->connection, create_table_sql) != 0) {
@@ -48,37 +51,46 @@ static int prepare_schema(mysql_writer_t *writer) {
 
 int mysql_writer_open(mysql_writer_t *writer) {
     const char *host, *database, *user, *password;
+    const char *charset = "utf8mb4";
     unsigned int port;
+    unsigned int connect_timeout = MYSQL_CONNECT_TIMEOUT_SECONDS;
+    unsigned int io_timeout = MYSQL_IO_TIMEOUT_SECONDS;
     char *port_end;
     unsigned long parsed_port;
 
     if (!writer) return -1;
     memset(writer, 0, sizeof(*writer));
-    host = env_or_default("SENSOR_DB_HOST", "127.0.0.1");
-    database = env_or_default("SENSOR_DB_NAME", "sensor");
-    user = env_or_default("SENSOR_DB_USER", "sensor_writer");
-    password = getenv("SENSOR_DB_PASSWORD");
-    if (!password) {
-        fprintf(stderr, "SENSOR_DB_PASSWORD is not set\n");
+    host = env_or_default("MONITOR_DB_HOST", "127.0.0.1");
+    database = env_or_default("MONITOR_DB_NAME", "system_monitor");
+    user = env_or_default("MONITOR_DB_USER", "monitor_writer");
+    password = getenv("MONITOR_DB_PASSWORD");
+    if (!password || !*password) {
+        fprintf(stderr, "MONITOR_DB_PASSWORD is not set\n");
         return -1;
     }
-    parsed_port = strtoul(env_or_default("SENSOR_DB_PORT", "3306"), &port_end, 10);
+    parsed_port = strtoul(env_or_default("MONITOR_DB_PORT", "3306"), &port_end, 10);
     if (*port_end != '\0' || parsed_port == 0 || parsed_port > 65535) {
-        fprintf(stderr, "invalid SENSOR_DB_PORT\n");
+        fprintf(stderr, "invalid MONITOR_DB_PORT\n");
         return -1;
     }
     port = (unsigned int)parsed_port;
     writer->connection = mysql_init(NULL);
     if (!writer->connection) return -1;
-    if (!mysql_real_connect(writer->connection, host, user, password, database,
-                            port, NULL, 0)) {
-        fprintf(stderr, "mysql connect failed: %s\n", mysql_error(writer->connection));
+    if (mysql_options(writer->connection, MYSQL_SET_CHARSET_NAME, charset) != 0 ||
+        mysql_options(writer->connection, MYSQL_OPT_CONNECT_TIMEOUT,
+                      &connect_timeout) != 0 ||
+        mysql_options(writer->connection, MYSQL_OPT_READ_TIMEOUT,
+                      &io_timeout) != 0 ||
+        mysql_options(writer->connection, MYSQL_OPT_WRITE_TIMEOUT,
+                      &io_timeout) != 0) {
+        fprintf(stderr, "configure MySQL connection failed: %s\n",
+                mysql_error(writer->connection));
         mysql_writer_close(writer);
         return -1;
     }
-    if (mysql_set_character_set(writer->connection, "utf8mb4") != 0) {
-        fprintf(stderr, "set character set failed: %s\n",
-                mysql_error(writer->connection));
+    if (!mysql_real_connect(writer->connection, host, user, password, database,
+                            port, NULL, 0)) {
+        fprintf(stderr, "mysql connect failed: %s\n", mysql_error(writer->connection));
         mysql_writer_close(writer);
         return -1;
     }
@@ -90,14 +102,14 @@ int mysql_writer_open(mysql_writer_t *writer) {
     return 0;
 }
 
-static int execute_insert(mysql_writer_t *writer, const sensor_message_t *message) {
+static int execute_insert(mysql_writer_t *writer, const system_metric_t *message) {
     MYSQL_BIND bind[8];
     unsigned long lengths[8];
     long long event_time = (long long)message->event_time_ms;
     long long sequence = (long long)message->sequence;
     double value = message->value;
     const char *strings[5] = {message->message_id, message->device_id,
-                              message->sensor_type, message->unit,
+                              message->metric_type, message->unit,
                               message->schema_version};
     int positions[5] = {0, 1, 2, 5, 7};
     int i;
@@ -127,7 +139,7 @@ static int execute_insert(mysql_writer_t *writer, const sensor_message_t *messag
 }
 
 int mysql_writer_write_batch(mysql_writer_t *writer,
-                             const sensor_message_t *messages, size_t count) {
+                             const system_metric_t *messages, size_t count) {
     size_t i;
     if (!writer || !writer->connection || !writer->insert_statement ||
         (!messages && count > 0)) return -1;
@@ -154,7 +166,11 @@ int mysql_writer_write_batch(mysql_writer_t *writer,
         mysql_autocommit(writer->connection, 1);
         return -1;
     }
-    mysql_autocommit(writer->connection, 1);
+    if (mysql_autocommit(writer->connection, 1) != 0) {
+        fprintf(stderr, "restore autocommit failed: %s\n",
+                mysql_error(writer->connection));
+        return -1;
+    }
     return 0;
 }
 

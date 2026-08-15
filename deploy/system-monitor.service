@@ -5,9 +5,9 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-WorkingDirectory=/home/bee/sensor_deploy
-EnvironmentFile=/home/bee/.config/sensor-monitor.env
-ExecStart=/home/bee/sensor_deploy/system_monitor_app
+WorkingDirectory=%h/monitor_deploy
+EnvironmentFile=%h/.config/system-monitor.env
+ExecStart=%h/monitor_deploy/system_monitor_app
 Restart=on-failure
 RestartSec=5
 NoNewPrivileges=true
