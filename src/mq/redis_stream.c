@@ -153,11 +153,20 @@ int redis_stream_consume(redis_stream_t *rs, redis_stream_entry_t *entries,
     if (!rs || !rs->connection || !entries || !count || cap == 0) return -1;
     *count = 0;
 
-    reply = redisCommand(rs->connection,
-                         "XREADGROUP GROUP %s %s COUNT %llu BLOCK %lld "
-                         "STREAMS %s >",
-                         rs->group, rs->consumer, (unsigned long long)cap,
-                         (long long)timeout_ms, rs->stream);
+    /* BLOCK 0 在 Redis 中表示“永久阻塞”，不是“不阻塞”；timeout_ms<=0 时应
+     * 省略 BLOCK，让 XREADGROUP 立即返回，避免退出排空时永久挂起。 */
+    if (timeout_ms > 0) {
+        reply = redisCommand(rs->connection,
+                             "XREADGROUP GROUP %s %s COUNT %llu BLOCK %lld "
+                             "STREAMS %s >",
+                             rs->group, rs->consumer, (unsigned long long)cap,
+                             (long long)timeout_ms, rs->stream);
+    } else {
+        reply = redisCommand(rs->connection,
+                             "XREADGROUP GROUP %s %s COUNT %llu STREAMS %s >",
+                             rs->group, rs->consumer, (unsigned long long)cap,
+                             rs->stream);
+    }
     if (!reply) {
         fprintf(stderr, "redis XREADGROUP failed: %s\n",
                 rs->connection->errstr);
