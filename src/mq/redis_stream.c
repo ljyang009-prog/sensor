@@ -149,6 +149,7 @@ int redis_stream_consume(redis_stream_t *rs, redis_stream_entry_t *entries,
                          size_t cap, size_t *count, int64_t timeout_ms) {
     redisReply *reply;
     size_t i;
+    long long block_ms = timeout_ms > 0 ? timeout_ms : 1;
 
     if (!rs || !rs->connection || !entries || !count || cap == 0) return -1;
     *count = 0;
@@ -157,7 +158,7 @@ int redis_stream_consume(redis_stream_t *rs, redis_stream_entry_t *entries,
                          "XREADGROUP GROUP %s %s COUNT %llu BLOCK %lld "
                          "STREAMS %s >",
                          rs->group, rs->consumer, (unsigned long long)cap,
-                         (long long)timeout_ms, rs->stream);
+                         block_ms, rs->stream);
     if (!reply) {
         fprintf(stderr, "redis XREADGROUP failed: %s\n",
                 rs->connection->errstr);

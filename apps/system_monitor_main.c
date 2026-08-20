@@ -183,7 +183,7 @@ static void *db_thread_main(void *arg) {
         if (!redis_ok)
             break;
         count = 0;
-        if (redis_stream_consume(&redis, entries, BATCH_CAPACITY, &count, 0) != 0)
+        if (redis_stream_consume(&redis, entries, BATCH_CAPACITY, &count, 100) != 0)
             break;
         if (count == 0)
             break;

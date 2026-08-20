@@ -119,3 +119,7 @@ sudo loginctl enable-linger "$USER"
 systemctl --user status system-monitor.service
 journalctl --user -u system-monitor.service -f
 ```
+
+## 测试
+
+测试计划、故障场景和验收标准见 [TESTING.md](TESTING.md)。
